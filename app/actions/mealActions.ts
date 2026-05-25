@@ -5,6 +5,17 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+// Tipo de resposta padronizado para retorno de Server Actions para o cliente
+export type ActionResponse = {
+  success: boolean;
+  error?: string;
+  fieldErrors?: {
+    description?: string[];
+    calories?: string[];
+    meal_type?: string[];
+  };
+};
+
 // Livro de regras do Zod para Refeições
 const mealSchema = z.object({
   description: z.string().min(2, "A descrição deve ter pelo menos 2 caracteres."),
@@ -13,7 +24,7 @@ const mealSchema = z.object({
 });
 
 // Tradutor universal para o Supabase (Zod aprova a chave, Supabase recebe o valor)
-const mapeamentoTipos: { [key: string]: string } = {
+const mapeamentoTipos: { [key: string]: 'café' | 'almoço' | 'lanche' | 'jantar' | 'ceia' } = {
   "Café da Manhã": "café",
   "Almoço": "almoço",
   "Lanche": "lanche",
@@ -22,11 +33,13 @@ const mapeamentoTipos: { [key: string]: string } = {
 };
 
 // 1. CREATE (Adicionar)
-export async function addMeal(formData: FormData) {
+export async function addMeal(formData: FormData): Promise<ActionResponse> {
   const supabase = (await createClient()) as any;
   
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) throw new Error("Usuário não autenticado");
+  if (authError || !user) {
+    return { success: false, error: "Usuário não autenticado." };
+  }
 
   // Passamos os dados pela catraca de validação do Zod
   const validatedFields = mealSchema.safeParse({
@@ -35,10 +48,12 @@ export async function addMeal(formData: FormData) {
     meal_type: formData.get("meal_type"),
   });
 
-  // Se o Zod barrar, nós abortamos e mostramos o erro no console do servidor
+  // Se o Zod barrar, retornamos os erros de campo estruturados
   if (!validatedFields.success) {
-    console.error("Zod barrou a entrada (CREATE):", validatedFields.error.flatten().fieldErrors);
-    throw new Error("Dados inválidos. Não foi possível passar pela validação de segurança.");
+    return {
+      success: false,
+      fieldErrors: validatedFields.error.flatten().fieldErrors,
+    };
   }
 
   const createdAtInput = formData.get("created_at") as string;
@@ -46,10 +61,8 @@ export async function addMeal(formData: FormData) {
 
   const newMeal = {
     user_id: user.id,
-    // Usamos os dados "limpos" e validados pelo Zod
     description: validatedFields.data.description,
     calories: validatedFields.data.calories,
-    // A Mágica: Traduz o texto para o formato que o banco de dados exige
     meal_type: mapeamentoTipos[validatedFields.data.meal_type],
     created_at: createdAt, 
   };
@@ -58,28 +71,38 @@ export async function addMeal(formData: FormData) {
 
   if (error) {
     console.error("Erro ao salvar no banco:", error);
-    throw new Error("Falha ao registrar a refeição.");
+    return { success: false, error: `Falha ao registrar a refeição: ${error.message} (Código: ${error.code})` };
   }
   
   revalidatePath("/dashboard");
+  return { success: true };
 }
 
 // 2. DELETE (Excluir)
-export async function deleteMeal(mealId: string) {
+export async function deleteMeal(mealId: string): Promise<ActionResponse> {
   const supabase = (await createClient()) as any;
   
   const { error } = await supabase.from("meals").delete().eq("id", mealId);
 
-  if (error) throw new Error("Falha ao deletar a refeição.");
+  if (error) {
+    console.error("Erro ao deletar:", error);
+    return { success: false, error: "Falha ao deletar a refeição." };
+  }
   
   revalidatePath("/dashboard");
+  return { success: true };
 }
 
 // 3. UPDATE (Atualizar)
-export async function updateMeal(formData: FormData) {
+export async function updateMeal(formData: FormData): Promise<ActionResponse> {
   const supabase = (await createClient()) as any;
   const mealId = String(formData.get("id"));
   
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return { success: false, error: "Usuário não autenticado." };
+  }
+
   // Aplicando Zod na atualização também para ficar 100% blindado!
   const validatedFields = mealSchema.safeParse({
     description: formData.get("description"),
@@ -88,16 +111,22 @@ export async function updateMeal(formData: FormData) {
   });
 
   if (!validatedFields.success) {
-    console.error("Zod barrou a entrada (UPDATE):", validatedFields.error.flatten().fieldErrors);
-    throw new Error("Dados inválidos. Não foi possível atualizar a refeição.");
+    return {
+      success: false,
+      fieldErrors: validatedFields.error.flatten().fieldErrors,
+    };
   }
 
-  const updatedData = {
+  const updatedData: any = {
     description: validatedFields.data.description,
     calories: validatedFields.data.calories,
-    // Traduzimos a refeição na atualização também!
     meal_type: mapeamentoTipos[validatedFields.data.meal_type],
   };
+
+  const createdAtInput = formData.get("created_at") as string;
+  if (createdAtInput) {
+    updatedData.created_at = new Date(createdAtInput).toISOString();
+  }
 
   const { error } = await supabase
     .from("meals")
@@ -106,10 +135,11 @@ export async function updateMeal(formData: FormData) {
 
   if (error) {
     console.error("Erro ao atualizar:", error);
-    throw new Error("Falha ao atualizar a refeição.");
+    return { success: false, error: "Falha ao atualizar a refeição." };
   }
   
   revalidatePath("/dashboard");
+  return { success: true };
 }
 
 // === NOVA FUNÇÃO DO JEJUM ===

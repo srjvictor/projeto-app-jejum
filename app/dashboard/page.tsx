@@ -5,6 +5,7 @@ import MealForm from "@/components/MealForm";
 import MealItem from "@/components/MealItem";
 import CalorieTracker from "@/components/CalorieTracker";
 import FastingTimer from "@/components/FastingTimer";
+import WaterTracker from "@/components/WaterTracker";
 import { handleSignOut } from "@/app/actions/mealActions";
 
 export default async function DashboardPage() {
@@ -16,37 +17,37 @@ export default async function DashboardPage() {
   }
 
   const { data: meals } = await supabase
-    .from("meals" as any)
+    .from("meals")
     .select("*")
     .order("created_at", { ascending: false });
 
   const { data: fasts } = await supabase
-    .from("fasts" as any)
+    .from("fasts")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  const { data: goalData }: any = await supabase
-    .from("user_goals" as any)
+  const { data: goalData } = await supabase
+    .from("user_goals")
     .select("daily_calories")
     .eq("user_id", user.id)
     .single();
 
-  const userGoal = goalData?.daily_calories || 0;
+  const userGoal = (goalData as { daily_calories: number } | null)?.daily_calories || 0;
 
-  const today = new Date().toISOString().split("T")[0]; 
-  
+  const today = new Date().toISOString().split("T")[0];
+
   const consumedToday = meals
     ? meals
-        .filter((meal: any) => meal.created_at && meal.created_at.startsWith(today))
-        .reduce((total: number, meal: any) => total + meal.calories, 0)
+      .filter((meal) => meal.created_at && meal.created_at.startsWith(today))
+      .reduce((total, meal) => total + meal.calories, 0)
     : 0;
 
   return (
     // Mudança 1: p-4 no mobile, md:p-8 no desktop
     <div className="min-h-screen bg-zinc-50 dark:bg-black p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
-        
+
         {/* Mudança 2: Cabeçalho em coluna no mobile, linha no desktop */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 gap-4">
           <div className="overflow-hidden w-full sm:w-auto">
@@ -56,10 +57,10 @@ export default async function DashboardPage() {
               Logado como: <strong className="text-black dark:text-white">{user.email}</strong>
             </p>
           </div>
-          
+
           <form action={handleSignOut} className="self-end sm:self-auto">
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="text-sm font-medium text-red-600 hover:text-red-500 transition-colors cursor-pointer bg-transparent border-0"
             >
               Sair
@@ -76,16 +77,19 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-6">
             <MealForm />
-            <FastingTimer />
-            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <FastingTimer />
+              <WaterTracker />
+            </div>
+
             <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">
                 Histórico de Jejuns
               </h2>
-              
+
               {fasts && fasts.length > 0 ? (
                 <ul className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-                  {fasts.map((fast: any) => (
+                  {fasts.map((fast) => (
                     <li key={fast.id} className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-700 flex justify-between items-center">
                       <div>
                         <p className="text-sm font-medium text-zinc-900 dark:text-white">
@@ -108,15 +112,15 @@ export default async function DashboardPage() {
               )}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">
               Histórico de Refeições
             </h2>
-            
+
             {meals && meals.length > 0 ? (
               <ul className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {meals.map((meal: any) => (
+                {meals.map((meal) => (
                   <MealItem key={meal.id} meal={meal} />
                 ))}
               </ul>

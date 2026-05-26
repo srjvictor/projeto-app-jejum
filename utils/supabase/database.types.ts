@@ -67,8 +67,10 @@ export interface Database {
           user_id: string
           start_time: string
           end_time: string | null
-          plan_type: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado'
-          status: 'ativo' | 'concluido' | 'cancelado'
+          protocol: string
+          duration_hours: number
+          plan_type: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado' | null
+          status: 'ativo' | 'concluido' | 'cancelado' | null
           created_at: string
         }
         Insert: {
@@ -76,8 +78,10 @@ export interface Database {
           user_id: string
           start_time?: string
           end_time?: string | null
-          plan_type: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado'
-          status?: 'ativo' | 'concluido' | 'cancelado'
+          protocol: string
+          duration_hours: number
+          plan_type?: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado' | null
+          status?: 'ativo' | 'concluido' | 'cancelado' | null
           created_at?: string
         }
         Update: {
@@ -85,8 +89,10 @@ export interface Database {
           user_id?: string
           start_time?: string
           end_time?: string | null
-          plan_type?: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado'
-          status?: 'ativo' | 'concluido' | 'cancelado'
+          protocol?: string
+          duration_hours?: number
+          plan_type?: '16:8' | '18:6' | '20:4' | '24h' | 'personalizado' | null
+          status?: 'ativo' | 'concluido' | 'cancelado' | null
           created_at?: string
         }
       }
